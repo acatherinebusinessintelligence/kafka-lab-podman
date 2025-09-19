@@ -27,6 +27,83 @@ Incluye simulador visual, guía interactiva en HTML y script automatizado de dem
 
 ---
 
+---
+
+## ⚡ Anexo: Instalación desde PowerShell (Windows 11)
+
+### 1️⃣ Verificar WSL
+Abre **PowerShell como Administrador** y ejecuta:
+```powershell
+wsl --version
+```
+
+- Si ves error: *"El Subsistema de Windows para Linux no está instalado"*, instala con:
+```powershell
+wsl --install
+```
+
+Esto descargará e instalará **Ubuntu** (por defecto Ubuntu 24.04 LTS).
+
+⚠️ Una vez completada la instalación, **solo necesitas ejecutar**:
+```powershell
+wsl
+```
+para abrir Ubuntu desde PowerShell.
+
+Si tu versión es menor a `1.2.5`, actualiza:
+```powershell
+wsl --update
+```
+
+---
+
+### 2️⃣ Configurar Ubuntu
+Cuando abras Ubuntu por primera vez:
+- Define tu **usuario** y **contraseña de Linux**.
+- Luego actualiza paquetes:
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+---
+
+### 3️⃣ Instalar Podman en Ubuntu
+Dentro de Ubuntu:
+```bash
+sudo apt install -y podman
+podman --version
+```
+
+---
+
+### 4️⃣ Instalar Podman Compose
+También en Ubuntu:
+```bash
+sudo apt install -y podman-compose
+podman-compose --version
+```
+
+---
+
+### 5️⃣ Instalar Python y utilidades básicas
+```bash
+sudo apt install -y python3 python3-pip git curl wget unzip build-essential htop
+```
+
+---
+
+### 6️⃣ Probar Podman
+```bash
+podman run --rm hello-world
+```
+
+👉 Debes ver el mensaje **"Hello from Docker!"**.
+
+---
+
+✅ Con esto ya tienes **WSL2 + Ubuntu + Podman + Compose + Python** listos.  
+Ahora puedes continuar con el laboratorio Kafka descrito en este README.
+
 ## 🚀 Instalación y uso
 
 Clonar el repositorio:
@@ -157,79 +234,4 @@ Ver archivo [LICENSE](LICENSE) para más detalles.
 💡 Consultora, docente y creadora de experiencias educativas con IA y tecnologías de nube.  
 🌐 Comparte con propósito en la comunidad como *Dra Corazón IA*.
 
----
 
-## ⚡ Anexo: Instalación desde PowerShell (Windows 11)
-
-### 1️⃣ Verificar WSL
-Abre **PowerShell como Administrador** y ejecuta:
-```powershell
-wsl --version
-```
-
-- Si ves error: *"El Subsistema de Windows para Linux no está instalado"*, instala con:
-```powershell
-wsl --install
-```
-
-Esto descargará e instalará **Ubuntu** (por defecto Ubuntu 24.04 LTS).
-
-⚠️ Una vez completada la instalación, **solo necesitas ejecutar**:
-```powershell
-wsl
-```
-para abrir Ubuntu desde PowerShell.
-
-Si tu versión es menor a `1.2.5`, actualiza:
-```powershell
-wsl --update
-```
-
----
-
-### 2️⃣ Configurar Ubuntu
-Cuando abras Ubuntu por primera vez:
-- Define tu **usuario** y **contraseña de Linux**.
-- Luego actualiza paquetes:
-```bash
-sudo apt update && sudo apt upgrade -y
-```
-
----
-
-### 3️⃣ Instalar Podman en Ubuntu
-Dentro de Ubuntu:
-```bash
-sudo apt install -y podman
-podman --version
-```
-
----
-
-### 4️⃣ Instalar Podman Compose
-También en Ubuntu:
-```bash
-sudo apt install -y podman-compose
-podman-compose --version
-```
-
----
-
-### 5️⃣ Instalar Python y utilidades básicas
-```bash
-sudo apt install -y python3 python3-pip git curl wget unzip build-essential htop
-```
-
----
-
-### 6️⃣ Probar Podman
-```bash
-podman run --rm hello-world
-```
-
-👉 Debes ver el mensaje **"Hello from Docker!"**.
-
----
-
-✅ Con esto ya tienes **WSL2 + Ubuntu + Podman + Compose + Python** listos.  
-Ahora puedes continuar con el laboratorio Kafka descrito en este README.
