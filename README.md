@@ -27,8 +27,6 @@ Incluye simulador visual, guía interactiva en HTML y script automatizado de dem
 
 ---
 
----
-
 ## ⚡ Anexo: Instalación desde PowerShell (Windows 11)
 
 ### 1️⃣ Verificar WSL
@@ -104,6 +102,7 @@ podman run --rm hello-world
 ✅ Con esto ya tienes **WSL2 + Ubuntu + Podman + Compose + Python** listos.  
 Ahora puedes continuar con el laboratorio Kafka descrito en este README.
 
+---
 ## 🚀 Instalación y uso
 
 Clonar el repositorio:
