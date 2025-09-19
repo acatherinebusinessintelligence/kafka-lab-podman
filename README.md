@@ -1,5 +1,3 @@
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
 
 # 🐧 Kafka Lab con Podman (WSL2 + Ubuntu 24.04)
 
