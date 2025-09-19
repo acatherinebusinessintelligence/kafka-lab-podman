@@ -1,3 +1,6 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+
 # 🐧 Kafka Lab con Podman (WSL2 + Ubuntu 24.04)
 
 ![GitHub last commit](https://img.shields.io/github/last-commit/acatherinebusinessintelligence/kafka-lab-podman?color=blue)
