@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guía paso a paso — Simulador Kafka + Clúster real en Podman</title>
+<style>
+  :root{
+    --bg:#ffffff;--text:#0f172a;--muted:#475569;--border:#e2e8f0;
+    --card:#f8fafc;--accent:#111827;--primary:#2563eb;--primary-dark:#1e40af;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Segoe UI, Roboto, Arial, sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+  header{padding:22px;border-bottom:1px solid var(--border);background:#f1f5f9;text-align:center}
+  header h1{margin:0;font-size:1.6rem;color:var(--accent)}
+  header p{margin:4px 0 0;color:var(--muted)}
+  main{max-width:980px;margin:0 auto;padding:18px}
+  section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin:14px 0;box-shadow:0 2px 6px rgba(0,0,0,.04)}
+  h2{margin:.2rem 0 1rem;font-size:1.2rem;color:var(--accent)}
+  h3{margin:1rem 0 .4rem;font-size:1.05rem}
+  .step{display:flex;gap:12px;align-items:flex-start;margin:.35rem 0}
+  .n{flex:0 0 28px;height:28px;border-radius:50%;background:#e2e8f0;color:#111827;display:flex;align-items:center;justify-content:center;font-weight:700}
+  pre{background:#fff;border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto}
+  code{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+  .callout{border-left:4px solid var(--primary);padding:10px 12px;background:#eef2ff;border:1px solid #dbeafe;border-radius:8px;color:#1e3a8a}
+  .small{color:var(--muted);font-size:.92rem}
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:.85rem}
+
+  /* Grid fix */
+  .two{
+    display:grid;
+    grid-template-columns:3fr 2fr; /* izquierda más ancha */
+    gap:18px;
+    align-items:start;
+  }
+  .two > div{min-width:0;word-wrap:break-word}
+
+  @media(max-width:860px){
+    .two{grid-template-columns:1fr}
+  }
+
+  /* Navbar */
+  .navbar{
+    position:sticky; top:0; z-index:1000;
+    background:#f8fafc; border-bottom:1px solid var(--border);
+    display:flex; gap:8px; justify-content:center; padding:8px 10px;
+  }
+  .navbar .btn{
+    background:var(--primary); color:#fff; border:none; border-radius:8px;
+    padding:7px 14px; cursor:pointer; font-size:.92rem;
+  }
+  .navbar .btn:hover{ background:var(--primary-dark); }
+
+  /* In-section nav buttons */
+  .nav-buttons{display:flex; gap:8px; justify-content:flex-end; margin-top:12px}
+  .btn-outline{background:#fff; border:1px solid var(--primary); color:var(--primary); border-radius:8px; padding:6px 12px; cursor:pointer}
+  .btn-outline:hover{background:var(--primary); color:#fff}
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <button class="btn" onclick="scrollToSection('simulador')">Simulador</button>
+  <button class="btn" onclick="scrollToSection('yaml')">YAML</button>
+  <button class="btn" onclick="scrollToSection('lab')">Laboratorio</button>
+  <button class="btn" onclick="scrollToSection('errores')">Errores comunes</button>
+</nav>
+
+<header>
+  <h1>Guía paso a paso — Simulador Kafka + Clúster real en Podman</h1>
+  <p>Responsable: <strong>Alejandra Montaña</strong> · Curso práctico</p>
+</header>
+
+<main>
+
+<section>
+  <h2>Objetivo</h2>
+  <p>Seguir un flujo didáctico en dos frentes: (1) <strong>simulación visual</strong> de brokers/particiones/ISR para comprender la dinámica; (2) <strong>clúster real</strong> de Kafka con 3 brokers en Podman para reproducir el mismo comportamiento.</p>
+  <div class="small">Requisitos: WSL2 + Ubuntu 24.04, Podman y <code>podman-compose</code> instalados, proyecto en <span class="pill">/home/&lt;usuario&gt;/proyectos/kafka-lab</span>.</div>
+</section>
+
+<section id="simulador">
+  <h2>Parte A — Simulador HTML (arquitectura y failover)</h2>
+  <div class="step"><div class="n">1</div><div><strong>Abrir el simulador</strong> <span class="small">(archivo <code>kafka_brokers_cluster_interactivo.html</code> en tu navegador)</span>.</div></div>
+  <div class="step"><div class="n">2</div><div>Configura <b>3 Brokers</b>, <b>3 Particiones</b>, <b>RF=3</b> y pulsa <b>Crear/Actualizar tópico</b>.</div></div>
+  <div class="step"><div class="n">3</div><div>Observa líderes y réplicas ISR por partición. Apaga/enciende brokers y analiza el <b>failover</b>.</div></div>
+  <div class="callout"><b>Idea clave:</b> <code>RF ≤ #brokers</code>; si el líder cae y queda ISR disponible, se elige un nuevo líder. Si no hay ISR, la partición queda sin líder.</div>
+  <div class="nav-buttons">
+    <button class="btn-outline" onclick="scrollToSection('yaml')">➡ Ir a YAML</button>
+  </div>
+</section>
+
+<section id="yaml">
+  <h2>Parte B — Clúster real en Podman</h2>
+  <div class="two">
+    <div>
+      <h3>1) Preparar carpeta</h3>
+      <pre><code>mkdir -p ~/proyectos/kafka-lab
+cd ~/proyectos/kafka-lab</code></pre>
+
+      <h3>2) Archivo Compose (3 brokers + Zookeeper)</h3>
+      <p>Guarda el YAML (por ejemplo <code>podman-compose.yml</code>).</p>
+      <pre><code>version: "3.8"
+services:
+  zookeeper:
+    image: docker.io/confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports: ["2181:2181"]
+
+  kafka1:
+    image: docker.io/confluentinc/cp-kafka:7.5.0
+    container_name: kafka1
+    hostname: kafka1
+    depends_on: [zookeeper]
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,INTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,INTERNAL://kafka1:29092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+
+  kafka2:
+    image: docker.io/confluentinc/cp-kafka:7.5.0
+    container_name: kafka2
+    hostname: kafka2
+    depends_on: [zookeeper]
+    ports: ["9093:9092"]
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,INTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9093,INTERNAL://kafka2:29092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+
+  kafka3:
+    image: docker.io/confluentinc/cp-kafka:7.5.0
+    container_name: kafka3
+    hostname: kafka3
+    depends_on: [zookeeper]
+    ports: ["9094:9092"]
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,INTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9094,INTERNAL://kafka3:29092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_MIN_INSYNC_REPLICAS: 2</code></pre>
+    </div>
+
+    <div>
+      <h3>¿Qué significa cada línea clave?</h3>
+      <ul>
+        <li><code>ports</code>: mapea puertos del contenedor al host (9092, 9093, 9094).</li>
+        <li><code>KAFKA_LISTENERS</code>: puertos donde el broker escucha dentro del contenedor (externo 9092, interno 29092).</li>
+        <li><code>KAFKA_ADVERTISED_LISTENERS</code>: direcciones anunciadas a los clientes:
+          <ul>
+            <li><b>PLAINTEXT://localhost:909x</b> para clientes desde el host/WSL.</li>
+            <li><b>INTERNAL://kafkaN:29092</b> para comunicación entre contenedores.</li>
+          </ul>
+        </li>
+        <li><code>KAFKA_INTER_BROKER_LISTENER_NAME</code>: los brokers se hablan por el listener <b>INTERNAL</b>.</li>
+        <li>Replicación interna (OFFSETS, TRANSACTION, MIN_ISR): coherente con un clúster de 3 brokers.</li>
+      </ul>
+
+      <h3>3) Levantar y verificar</h3>
+      <pre><code>podman-compose up -d
+podman ps
+# Debes ver: zookeeper, kafka1 (9092), kafka2 (9093), kafka3 (9094)</code></pre>
+
+      <div class="callout"><b>Tip:</b> si ves puertos ocupados o restos, limpia:
+<pre><code>podman stop -a && podman rm -a -f && podman pod rm -a -f
+podman network prune -f && podman volume prune -f</code></pre>
+      </div>
+    </div>
+  </div>
+  <div class="nav-buttons">
+    <button class="btn-outline" onclick="scrollToSection('simulador')">⬅ Volver a Simulador</button>
+    <button class="btn-outline" onclick="scrollToSection('lab')">➡ Ir al Laboratorio</button>
+  </div>
+</section>
+
+<section id="lab">
+  <h2>Parte C — Práctica guiada (produce/consume + failover)</h2>
+  <div class="two">
+    <div>
+      <h3>1) Crear tópico replicado (RF=3)</h3>
+      <pre><code>podman exec -it kafka1 bash -lc \
+  'kafka-topics --create --topic demo --bootstrap-server kafka1:29092 --partitions 3 --replication-factor 3'</code></pre>
+      <div class="small">Si ya existe, verás <em>TopicExistsException</em>: continúa con el describe.</div>
+
+      <h3>2) Ver líderes e ISR</h3>
+      <pre><code>podman exec -it kafka1 bash -lc \
+  'kafka-topics --describe --topic demo --bootstrap-server kafka1:29092'</code></pre>
+
+      <h3>3) Productor (terminal A)</h3>
+      <pre><code>podman exec -it kafka1 bash -lc \
+  'kafka-console-producer --topic demo --bootstrap-server kafka1:29092'</code></pre>
+      <pre><code>hola
+mensaje 2
+mensaje 3</code></pre>
+    </div>
+
+    <div>
+      <h3>4) Consumidor (terminal B)</h3>
+      <pre><code>podman exec -it kafka2 bash -lc \
+  'kafka-console-consumer --topic demo --bootstrap-server kafka2:29092 --from-beginning'</code></pre>
+
+      <h3>5) Simular caída y recuperación</h3>
+      <pre><code># apagar un broker
+podman stop kafka3
+
+# observar cambios de líder/ISR
+podman exec -it kafka1 bash -lc \
+  'kafka-topics --describe --topic demo --bootstrap-server kafka1:29092'
+
+# encender de nuevo
+podman start kafka3</code></pre>
+
+      <h3>6) Consumir con timeout (opcional)</h3>
+      <pre><code>podman exec -it kafka2 bash -lc \
+  'kafka-console-consumer --topic demo --bootstrap-server kafka2:29092 --from-beginning --timeout-ms 5000 || true'</code></pre>
+    </div>
+  </div>
+  <div class="nav-buttons">
+    <button class="btn-outline" onclick="scrollToSection('yaml')">⬅ Volver a YAML</button>
+    <button class="btn-outline" onclick="scrollToSection('errores')">➡ Ir a Errores comunes</button>
+  </div>
+</section>
+
+<section id="errores">
+  <h2>Solución de problemas frecuentes</h2>
+  <ul>
+    <li><b>Puertos ocupados / contenedores previos:</b> usa los comandos de limpieza de la sección YAML.</li>
+    <li><b>“Broker may not be available” desde contenedor:</b> usa <code>kafkaN:29092</code> (no <code>localhost:9093</code> dentro del contenedor).</li>
+    <li><b>TopicExistsException:</b> el tópico ya existe; continúa con <code>--describe</code> o bórralo.</li>
+    <li><b>Mezcla de PowerShell y Ubuntu:</b> todos los comandos <code>podman</code> deben ejecutarse en la terminal de <b>Ubuntu WSL</b>.</li>
+  </ul>
+  <div class="nav-buttons">
+    <button class="btn-outline" onclick="scrollToSection('simulador')">⬅ Volver al inicio</button>
+  </div>
+</section>
+
+</main>
+
+<script>
+function scrollToSection(id){
+  const el = document.getElementById(id);
+  if(el){ el.scrollIntoView({behavior:'smooth'}); }
+}
+</script>
+
+</body>
+</html>

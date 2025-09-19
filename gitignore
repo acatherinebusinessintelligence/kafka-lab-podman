@@ -1,0 +1,17 @@
+# Generic
+.DS_Store
+Thumbs.db
+
+# Python/Server local
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Node (por si agregas alguna UI)
+node_modules/
+
+# Editor/OS
+.vscode/
+.idea/
