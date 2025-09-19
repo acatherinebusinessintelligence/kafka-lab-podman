@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kafka — Brokers & Clúster (Interactivo)</title>
+<style>
+:root{--bg:#0b1020;--panel:#0f172a;--text:#e8ecf5;--muted:#9aa4b2;--accent:#7c4dff;--ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;--stroke:#21304a}
+*{box-sizing:border-box}body{margin:0;background:#0b1020;color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Noto Sans,sans-serif}
+.wrap{max-width:1200px;margin:0 auto;padding:24px}
+h1{margin:0 0 8px;font-size:40px} h2{margin:0 0 6px;font-size:28px}
+p{font-size:18px;color:#dbe4f3;line-height:1.6}
+.card{background:#0f172a;border:1px solid var(--stroke);border-radius:16px;padding:16px 18px;margin-bottom:18px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.small{color:#9aa4b2;font-size:14px}
+.input{background:#0d1530;border:1px solid var(--stroke);color:var(--text);padding:8px 10px;border-radius:10px;min-width:120px}
+.btn{background:var(--accent);border:none;color:#fff;padding:9px 12px;border-radius:10px;font-weight:700;cursor:pointer}
+.btn.ghost{background:transparent;border:1px solid var(--stroke);color:var(--text)}
+.range{accent-color:var(--accent)}
+.grid-brokers{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px}
+.broker{border:1px solid #2a3555;border-radius:14px;background:#0b1228;padding:10px}
+.broker.off{opacity:.35;filter:grayscale(60%)}
+.badge{display:inline-block;padding:4px 10px;border-radius:999px;background:#162347;border:1px solid var(--stroke);color:#c7d2fe;font-size:13px;font-weight:600}
+.part{display:flex;justify-content:space-between;gap:6px;align-items:center;border:1px dashed #22314f;border-radius:10px;padding:6px 8px;margin:4px 0}
+.rep{font-size:12px;padding:2px 6px;border-radius:999px;border:1px solid #2a3555;background:#101a36}
+.rep.leader{border-color:#7c4dff;color:#c7b9ff}
+.rep.isr{border-color:#22c55e;color:#b6f3cf}
+.rep.out{border-color:#ef4444;color:#ffc2c2}
+.kpi{display:inline-flex;gap:8px;align-items:center}
+.kpi i{width:10px;height:10px;border-radius:999px;background:#22c55e}
+.kpi.warn i{background:#f59e0b}.kpi.danger i{background:#ef4444}
+.msg{display:inline-block;padding:2px 6px;border-radius:999px;background:#7c4dff33;border:1px solid #7c4dff66;margin:2px;font-size:12px}
+.topic{border:1px dashed #2a3555;border-radius:12px;padding:8px}
+</style></head>
+<body><div class="wrap">
+  <h1>Brokers & Clúster en Apache Kafka (Interactivo)</h1>
+  <p class="small">Explora líderes, réplicas ISR, replicación y failover. Apaga/enciende brokers y observa la disponibilidad del tópico.</p>
+
+  <section class="card">
+    <h2>Configuración del clúster</h2>
+    <div class="row">
+      <label> Brokers: <input id="nBrokers" type="range" min="1" max="6" value="3" class="range"> <b id="nBrokersLbl">3</b></label>
+      <label> Particiones: <input id="nParts" type="range" min="1" max="8" value="4" class="range"> <b id="nPartsLbl">4</b></label>
+      <label> Factor de replicación: <input id="rf" type="range" min="1" max="3" value="2" class="range"> <b id="rfLbl">2</b></label>
+      <button class="btn" id="build">Crear/Actualizar tópico</button>
+      <button class="btn ghost" id="reset">Reset</button>
+      <span id="clusterKpi" class="kpi"><i></i><b>Cluster OK</b></span>
+    </div>
+    <p class="small">La regla práctica es <code>rf ≤ número de brokers</code>. Los líderes se asignan round-robin; las réplicas ISR rotan entre brokers.</p>
+  </section>
+
+  <section class="card">
+    <h2>Topología del tópico</h2>
+    <div id="brokersGrid" class="grid-brokers"></div>
+  </section>
+
+  <section class="card">
+    <h2>Producir / Consumir (simulado)</h2>
+    <div class="row">
+      <input id="key" class="input" placeholder="clave (opcional)">
+      <input id="value" class="input" placeholder="valor/mensaje">
+      <button class="btn" id="produce">Producir</button>
+      <button class="btn ghost" id="consume">Consumir 1 por partición</button>
+      <span class="small" id="note"></span>
+    </div>
+    <div id="topicMsgs" class="topic" style="margin-top:10px"></div>
+  </section>
+
+  <section class="card">
+    <h2>Cómo leer lo que ves</h2>
+    <ul>
+      <li><span class="rep leader">leader</span>: broker que acepta escrituras/lecturas.</li>
+      <li><span class="rep isr">isr</span>: réplicas sincronizadas listas para tomar liderazgo si el líder cae.</li>
+      <li>Tilda un broker (interruptor) para simular una caída. Si no queda ISR vivo para una partición, esa partición queda <b>indisponible</b>.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+// Estado
+let NB = 3, NP = 4, RF = 2;
+let brokers = []; // [{id, up:true}]
+let topic = { parts: [] }; // parts: [{leader: bId, isr:[bIds], log:[]}]
+
+const nBrokers = document.getElementById('nBrokers'), nBrokersLbl = document.getElementById('nBrokersLbl');
+const nParts = document.getElementById('nParts'), nPartsLbl = document.getElementById('nPartsLbl');
+const rf = document.getElementById('rf'), rfLbl = document.getElementById('rfLbl');
+const brokersGrid = document.getElementById('brokersGrid');
+const clusterKpi = document.getElementById('clusterKpi');
+const topicMsgs = document.getElementById('topicMsgs');
+const note = document.getElementById('note');
+
+function initBrokers(){
+  brokers = Array.from({length: NB}, (_,i)=>({id:i, up:true}));
+}
+
+function buildTopic(){
+  if(RF > NB){ RF = NB; rf.value = NB; rfLbl.textContent = NB; }
+  topic.parts = [];
+  for(let p=0;p<NP;p++){
+    const leader = p % NB;
+    // pick ISR (RF-1 replicas) distinct from leader, round-robin
+    const isr = [];
+    let next = (leader+1)%NB;
+    for(let r=0;r<RF-1;r++){
+      isr.push(next);
+      next = (next+1)%NB;
+    }
+    topic.parts.push({leader, isr:[leader, ...isr], log:[]});
+  }
+  render();
+}
+
+function render(){
+  // Brokers grid
+  brokersGrid.innerHTML = '';
+  for(const b of brokers){
+    const div = document.createElement('div');
+    div.className = 'broker'+(b.up?'':' off');
+    const head = document.createElement('div');
+    head.className = 'row';
+    head.innerHTML = `<b>Broker ${b.id}</b>
+      <label class="small"><input type="checkbox" ${b.up?'checked':''} data-toggle="${b.id}"> encendido</label>`;
+    div.appendChild(head);
+    // list partitions where this broker holds leader or replica
+    for(let p=0;p<topic.parts.length;p++){
+      const part = topic.parts[p];
+      const holds = part.isr.includes(b.id);
+      if(!holds) continue;
+      const el = document.createElement('div');
+      el.className = 'part';
+      const role = (part.leader===b.id)?'leader':'isr';
+      el.innerHTML = `<span><b>P${p}</b></span><span class="rep ${role}">${role}</span>`;
+      div.appendChild(el);
+    }
+    brokersGrid.appendChild(div);
+  }
+  // bind toggles
+  document.querySelectorAll('[data-toggle]').forEach(chk => {
+    chk.onchange = (e)=>{
+      const id = parseInt(e.target.getAttribute('data-toggle'),10);
+      brokers[id].up = e.target.checked;
+      // if leader down, try elect next ISR up
+      rebalance();
+      render();
+    };
+  });
+
+  // KPI
+  const unavailable = partitionsUnavailable();
+  clusterKpi.className = 'kpi '+(unavailable===0 ? '' : (unavailable < NP ? 'warn' : 'danger'));
+  clusterKpi.querySelector('b').textContent = (unavailable===0) ? 'Cluster OK' :
+    (unavailable<NP ? `Riesgo: ${unavailable} partición(es) sin líder` : 'Indisponible');
+
+  // Topic log preview
+  topicMsgs.innerHTML = '';
+  for(let p=0;p<NP;p++){
+    const part = topic.parts[p];
+    const box = document.createElement('div');
+    box.className = 'part';
+    const leaderUp = brokers[part.leader]?.up;
+    const status = leaderUp ? '<span class="rep leader">leader OK</span>' : '<span class="rep out">sin líder</span>';
+    box.innerHTML = `<span><b>P${p}</b> ${status}</span><span>${part.log.map(m=>`<span class="msg">${m}</span>`).join(' ')}</span>`;
+    topicMsgs.appendChild(box);
+  }
+}
+
+function partitionsUnavailable(){
+  let cnt = 0;
+  for(const part of topic.parts){
+    if(!brokers[part.leader]?.up) cnt++;
+  }
+  return cnt;
+}
+
+function rebalance(){
+  // For each partition: if leader is down, elect next ISR that is up.
+  for(const part of topic.parts){
+    if(!brokers[part.leader]?.up){
+      const candidates = part.isr.filter(id => brokers[id].up);
+      if(candidates.length>0){
+        part.leader = candidates[0]; // simple election
+      }
+    }
+  }
+}
+
+// Produce/Consume simulation
+function choosePartitionByKey(key){
+  if(!key) return Math.floor(Math.random()*NP);
+  // simple hash
+  let h=0; for(let i=0;i<key.length;i++){h=((h<<5)-h)+key.charCodeAt(i); h|=0;}
+  h = Math.abs(h); return h % NP;
+}
+
+function produce(key, value){
+  const p = choosePartitionByKey(key);
+  const part = topic.parts[p];
+  if(!brokers[part.leader]?.up){
+    note.textContent = `❌ Producción falló: P${p} no tiene líder disponible.`;
+    return;
+  }
+  // append to leader log (replicas implícitas)
+  const label = (key?('#'+key+' '):'') + (value||'msg');
+  part.log.push(label);
+  note.textContent = `✓ Mensaje enviado a P${p} (líder Broker ${part.leader}).`;
+  render();
+}
+
+function consumeOnePerPartition(){
+  for(const part of topic.parts){
+    if(!brokers[part.leader]?.up) continue;
+    if(part.log.length>0){ part.log.shift(); }
+  }
+  note.textContent = '↧ Consumido 1 mensaje por partición con líder disponible.';
+  render();
+}
+
+// Bind UI
+document.getElementById('build').onclick = ()=>{ buildTopic(); };
+document.getElementById('reset').onclick = ()=>{ initBrokers(); buildTopic(); topic.parts.forEach(p=>p.log=[]); note.textContent=''; };
+document.getElementById('produce').onclick = ()=>{ const k=document.getElementById('key').value.trim(); const v=document.getElementById('value').value.trim(); produce(k,v); };
+document.getElementById('consume').onclick = ()=> consumeOnePerPartition();
+
+// Sliders
+nBrokers.oninput = ()=>{ NB=parseInt(nBrokers.value,10); nBrokersLbl.textContent=NB; initBrokers(); buildTopic(); };
+nParts.oninput = ()=>{ NP=parseInt(nParts.value,10); nPartsLbl.textContent=NP; buildTopic(); };
+rf.oninput = ()=>{ RF=parseInt(rf.value,10); if(RF>NB){RF=NB; rf.value=NB;} rfLbl.textContent=RF; buildTopic(); };
+
+// Init
+nBrokersLbl.textContent = nBrokers.value;
+nPartsLbl.textContent = nParts.value;
+rfLbl.textContent = rf.value;
+initBrokers(); buildTopic();
+</script>
+</body></html>
