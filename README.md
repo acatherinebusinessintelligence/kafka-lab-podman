@@ -5,7 +5,7 @@
 
 ![GitHub last commit](https://img.shields.io/github/last-commit/acatherinebusinessintelligence/kafka-lab-podman?color=blue)
 ![GitHub repo size](https://img.shields.io/github/repo-size/acatherinebusinessintelligence/kafka-lab-podman?color=success)
-![GitHub license](https://img.shields.io/github/license/acatherinebusinessintelligence/kafka-lab-podman?color=yellow)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Laboratorio educativo para comprender y practicar con **Apache Kafka** en un clúster de **3 brokers + Zookeeper**, ejecutados en **Podman** sobre **WSL2 (Ubuntu 24.04)**.  
 Incluye simulador visual, guía interactiva en HTML y script automatizado de demo.  
